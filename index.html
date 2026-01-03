@@ -113,4 +113,65 @@
                                             <div className="bg-indigo-500 h-full transition-all" style={{width: `${stats.percent}%`}}></div>
                                         </div>
                                     </div>
-                                    <div className="bg-white dark:bg-slate-800 p-4 rounded-xl shadow border dark:border-
+                                    <div className="bg-white dark:bg-slate-800 p-4 rounded-xl shadow border dark:border-slate-700 dark:text-white flex items-center justify-between">
+                                        <div>
+                                            <p className="text-xs font-bold opacity-50 uppercase">Total Insights</p>
+                                            <p className="text-3xl font-black">{stats.total}</p>
+                                        </div>
+                                        <Icon name="book" size={40} className="opacity-10" />
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Input Form */}
+                            <section className="bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-lg mb-8 border dark:border-slate-700">
+                                <form onSubmit={handleAdd} className="space-y-4">
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                        <input placeholder="Title" className="bg-transparent border-b dark:border-slate-600 dark:text-white p-1 focus:outline-none" value={newNote.title} onChange={e => setNewNote({...newNote, title: e.target.value})} />
+                                        <input placeholder="Author" className="bg-transparent border-b dark:border-slate-600 dark:text-white p-1 focus:outline-none" value={newNote.author} onChange={e => setNewNote({...newNote, author: e.target.value})} />
+                                        <input placeholder="Tags" className="bg-transparent border-b dark:border-slate-600 dark:text-white p-1 focus:outline-none" value={newNote.tags} onChange={e => setNewNote({...newNote, tags: e.target.value})} />
+                                    </div>
+                                    <div className="flex gap-2 p-1 bg-slate-50 dark:bg-slate-900 rounded w-fit">
+                                        <button type="button" onClick={() => wrapText('<mark>', '</mark>')} className="p-1 hover:bg-white dark:hover:bg-slate-700 rounded"><Icon name="highlighter" className="text-yellow-500" /></button>
+                                        <button type="button" onClick={() => wrapText('**', '**')} className="p-1 hover:bg-white dark:hover:bg-slate-700 rounded dark:text-white"><Icon name="bold" /></button>
+                                        <button type="button" onClick={() => wrapText('> ', '')} className="p-1 hover:bg-white dark:hover:bg-slate-700 rounded dark:text-white"><Icon name="text-quote" /></button>
+                                    </div>
+                                    <textarea id="editor" placeholder="Note content (Markdown)..." className="w-full h-32 bg-slate-50 dark:bg-slate-900 p-3 rounded-xl dark:text-white outline-none ring-indigo-500 focus:ring-2" value={newNote.content} onChange={e => setNewNote({...newNote, content: e.target.value})} />
+                                    <button className="w-full bg-indigo-600 text-white py-3 rounded-xl font-bold hover:bg-indigo-700 transition">Save Insight</button>
+                                </form>
+                            </section>
+
+                            {/* Search & Filters */}
+                            <div className="flex flex-col md:flex-row gap-4 mb-8">
+                                <div className="relative flex-1">
+                                    <div className="absolute left-4 top-3.5"><Icon name="search" className="text-slate-400" /></div>
+                                    <input placeholder="Search library..." className="w-full pl-12 pr-4 py-3 rounded-xl shadow-sm dark:bg-slate-800 dark:text-white outline-none" value={query} onChange={e => setQuery(e.target.value)} />
+                                </div>
+                                <button onClick={() => setShowOnlyHighlights(!showOnlyHighlights)} className={`flex items-center gap-2 px-6 py-3 rounded-xl border transition-all ${showOnlyHighlights ? 'bg-yellow-100 border-yellow-400 text-yellow-700' : 'bg-white dark:bg-slate-800 dark:text-white dark:border-slate-700'}`}>
+                                    <Icon name="highlighter" /> <span className="text-sm font-bold">Important Only</span>
+                                </button>
+                            </div>
+
+                            {/* Notes Grid */}
+                            <div className="columns-1 md:columns-2 gap-6 space-y-6">
+                                {filteredNotes.map(n => (
+                                    <div key={n.id} className="break-inside-avoid bg-white dark:bg-slate-800 p-6 rounded-2xl border dark:border-slate-700 shadow-sm relative group">
+                                        <button onClick={() => setNotes(notes.filter(x => x.id !== n.id))} className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 text-slate-300 hover:text-red-500 transition-all"><Icon name="trash-2" size={16} /></button>
+                                        <h3 className="font-black dark:text-white mb-1 uppercase tracking-tight">{n.title}</h3>
+                                        <p className="text-[10px] text-indigo-500 font-bold mb-4">{n.author || 'Unknown Author'}</p>
+                                        <div className="prose prose-sm dark:prose-invert dark:text-slate-300 mb-4 overflow-hidden" dangerouslySetInnerHTML={{ __html: marked.parse(n.content) }} />
+                                        <div className="flex flex-wrap gap-2">{n.tags.split(',').map(t => <span key={t} className="text-[9px] font-bold text-slate-400">#{t.trim()}</span>)}</div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
