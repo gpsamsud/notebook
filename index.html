@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vault - Unified v17</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.production.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.production.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@babel/standalone@7.23.5/babel.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <style>
+        .reading-typography { font-family: 'Georgia', serif; line-height: 1.8; }
+        .active-glow { border: 2px solid #6366f1 !important; box-shadow: 0 10px 30px rgba(99, 102, 241, 0.15); }
+        .tag-active { background-color: #6366f1 !important; color: white !important; }
+        mark { background-color: #fef08a; color: #1e293b; padding: 0 2px; border-radius: 2px; }
+        .dark mark { background-color: #854d0e; color: #fefce8; }
+        @media print { .no-print { display: none !important; } main { padding: 0 !important; max-width: 100% !important; } }
+    </style>
+</head>
+<body class="bg-slate-50 dark:bg-slate-900 transition-colors">
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useMemo, useRef } = React;
+
+        const App = () => {
+            const [notes, setNotes] = useState(() => {
+                const saved = localStorage.getItem('vault_v17_master');
+                return saved ? JSON.parse(saved) : [];
+            });
+            
+            const [buffer, setBuffer] = useState({ title: '', content: '', tags: '' });
+            const [editingId, setEditingId] = useState(null);
+            const [readMode, setReadMode] = useState(false);
+            const [darkMode, setDarkMode] = useState(false);
+            const [query, setQuery] = useState('');
+            const [tagFilter, setTagFilter] = useState('');
+            const textareaRef = useRef(null);
+
+            const focusContent = () => {
+                setTimeout(() => {
+                    if (textareaRef.current) {
+                        textareaRef.current.focus();
+                        const length = textareaRef.current.value.length;
+                        textareaRef.current.setSelectionRange(length, length);
+                    }
+                }, 50);
+            };
+
+            const onSave = () => {
+                if (!buffer.title.trim() && !buffer.content.trim()) return;
+                const ts = new Date().toLocaleString();
+                let updated;
+                if (editingId) {
+                    updated = notes.map(n => n.id === editingId ? { ...buffer, id: editingId, timestamp: `Edited ${ts}` } : n);
+                } else {
+                    const id = Date.now();
+                    updated = [{ ...buffer, id, timestamp: ts }, ...notes];
+                    setEditingId(id);
+                }
+                setNotes(updated);
+                localStorage.setItem('vault_v17_master', JSON.stringify(updated));
+            };
+
+            const onNew = () => {
+                if (buffer.title.trim() || buffer.content.trim()) onSave();
+                setBuffer({ title: '', content: '', tags: '' });
+                setEditingId(null);
+                setReadMode(false);
+                focusContent();
+            };
+
+            const loadToEditor = (note) => {
+                setEditingId(note.id);
+                setBuffer({ title: note.title, content: note.content, tags: note.tags || '' });
+                setReadMode(false);
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+                focusContent();
+            };
+
+            const applyFormatting = (prefix, suffix) => {
+                const el = textareaRef.current;
+                if (!el) return;
+                const start = el.selectionStart;
+                const end = el.selectionEnd;
+                const text = el.value;
+                const selected = text.substring(start, end);
+                const newText = text.substring(0, start) + prefix + selected + suffix + text.substring(end);
+                setBuffer({ ...buffer, content: newText });
+                setTimeout(() => {
+                    el.focus();
+                    el.setSelectionRange(start + prefix.length, end + prefix.length);
+                }, 10);
+            };
+
+            const displayedNotes = useMemo(() => {
+                return notes.filter(note => {
+                    const textMatch = (note.title + note.content + (note.tags || '')).toLowerCase().includes(query.toLowerCase());
+                    const tagMatch = tagFilter ? note.tags?.toLowerCase().includes(tagFilter) : true;
+                    return textMatch && tagMatch;
+                });
+            }, [notes, query, tagFilter]);
+
+            const uniqueTags = useMemo(() => {
+                const tagMap = new Set();
+                notes.forEach(n => n.tags?.split(',').forEach(t => {
+                    const clean = t.trim().toLowerCase();
+                    if (clean) tagMap.add(clean);
+                }));
+                return Array.from(tagMap).sort();
+            }, [notes]);
+
+            return (
+                <div className={darkMode ? 'dark' : ''}>
+                    <div className="min-h-screen flex flex-col md:flex-row dark:bg-slate-900 transition-colors">
+                        
+                        {/* SIDEBAR */}
+                        <aside className="w-full md:w-72 bg-white dark:bg-slate-800 border-r dark:border-slate-700 p-6 flex flex-col no-print">
+                            <div className="flex justify-between items-center mb-8">
+                                <h1 className="font-black text-xl dark:text-white italic">VAULT v17</h1>
+                                <button onClick={() => setDarkMode(!darkMode)} className="p-2 bg-slate-100 dark:bg-slate-700 rounded-lg">{darkMode ? '☀️' : '🌙'}</button>
+                            </div>
+
+                            <div className="flex-1 overflow-y-auto pr-2">
+                                <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Tags</h3>
+                                <div className="flex flex-wrap gap-2 mb-8">
+                                    <button onClick={() => setTagFilter('')} className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase border ${!tagFilter ? 'tag-active border-indigo-600' : 'bg-transparent border-slate-200 dark:border-slate-600 dark:text-slate-400'}`}>All</button>
+                                    {uniqueTags.map(tag => (
+                                        <button key={tag} onClick={() => setTagFilter(tagFilter === tag ? '' : tag)} className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase border ${tagFilter === tag ? 'tag-active border-indigo-600' : 'bg-transparent border-slate-200 dark:border-slate-600 dark:text-slate-400'}`}>#{tag}</button>
+                                    ))}
+                                </div>
+                                <div className="space-y-4 pt-6 border-t dark:border-slate-700">
+                                    <button onClick={() => setReadMode(!readMode)} className="w-full text-left p-3 rounded-xl text-xs font-black hover:bg-slate-100 dark:hover:bg-slate-700 dark:text-slate-300 uppercase">{readMode ? '📑 Editor' : '📖 Reader'}</button>
+                                    <button onClick={() => {const d=JSON.stringify(notes); const u='data:application/json;charset=utf-8,'+encodeURIComponent(d); const l=document.createElement('a'); l.setAttribute('href', u); l.setAttribute('download', 'vault.json'); l.click();}} className="w-full text-left p-3 rounded-xl text-xs font-black hover:bg-slate-100 dark:hover:bg-slate-700 dark:text-slate-300 uppercase">📤 Export</button>
+                                    <label className="w-full text-left p-3 rounded-xl text-xs font-black hover:bg-slate-100 dark:hover:bg-slate-700 dark:text-slate-300 uppercase cursor-pointer block">📥 Import <input type="file" className="hidden" accept=".json" onChange={(e)=>{const r=new FileReader(); r.onload=(ev)=>{setNotes(JSON.parse(ev.target.result))}; r.readAsText(e.target.files[0]);}} /></label>
+                                    <button onClick={() => window.print()} className="w-full text-left p-3 rounded-xl text-xs font-black hover:bg-slate-100 dark:hover:bg-slate-700 dark:text-slate-300 uppercase">🖨️ Print</button>
+                                </div>
+                            </div>
+                        </aside>
+
+                        {/* MAIN AREA */}
+                        <main className="flex-1 p-6 md:p-12 max-w-5xl mx-auto w-full overflow-y-auto">
+                            <div className="mb-10 no-print">
+                                <input type="text" placeholder="Search insights..." className="w-full bg-white dark:bg-slate-800 p-5 rounded-2xl shadow-sm border-2 border-transparent focus:border-indigo-500 outline-none transition-all dark:text-white font-medium" value={query} onChange={(e) => setQuery(e.target.value)} />
+                            </div>
+
+                            {!readMode && (
+                                <section className={`bg-white dark:bg-slate-800 p-8 rounded-3xl border-2 transition-all mb-16 no-print ${editingId ? 'active-glow' : 'border-transparent'}`}>
+                                    <div className="flex justify-between items-center mb-6">
+                                        <span className="text-[10px] font-black uppercase tracking-[0.3em] text-indigo-500">{editingId ? 'Editing' : 'New Draft'}</span>
+                                        <div className="flex items-center gap-2">
+                                            {/* TEXT FORMATTING */}
+                                            <button onClick={() => applyFormatting('**', '**')} className="px-3 py-2 bg-slate-100 dark:bg-slate-700 rounded-lg text-xs font-black dark:text-white hover:bg-indigo-500 hover:text-white transition-colors">B</button>
+                                            <button onClick={() => applyFormatting('<mark>', '</mark>')} className="px-3 py-2 bg-yellow-100 rounded-lg text-xs font-black text-yellow-800 hover:bg-yellow-200 transition-colors">H</button>
+                                            
+                                            <div className="w-px h-6 bg-slate-200 dark:bg-slate-700 mx-2"></div>
+                                            
+                                            {/* NEW & SAVE ACTION CENTER */}
+                                            <button onClick={onNew} title="New Insight" className="px-4 py-2 bg-slate-800 dark:bg-indigo-900 text-white rounded-lg text-lg font-bold hover:bg-black transition-all shadow-md">⊕</button>
+                                            <button onClick={onSave} className="px-8 py-2 bg-indigo-600 text-white rounded-lg text-xs font-black uppercase shadow-lg hover:bg-indigo-700 active:scale-95 transition-all">Save</button>
+                                        </div>
+                                    </div>
+                                    <div className="space-y-6">
+                                        <input className="w-full bg-transparent text-4xl font-black dark:text-white outline-none placeholder-slate-200" placeholder="Title" value={buffer.title} onChange={e => setBuffer({...buffer, title: e.target.value})} />
+                                        <input className="w-full bg-transparent text-sm font-bold text-indigo-400 italic outline-none" placeholder="tags, tags" value={buffer.tags} onChange={e => setBuffer({...buffer, tags: e.target.value})} />
+                                        <textarea ref={textareaRef} className="w-full h-80 bg-transparent dark:text-slate-200 text-lg outline-none resize-none leading-relaxed border-t dark:border-slate-700 pt-8" placeholder="Start writing..." value={buffer.content} onChange={e => setBuffer({...buffer, content: e.target.value})} />
+                                    </div>
+                                </section>
+                            )}
+
+                            <div className="space-y-20 pb-40">
+                                {displayedNotes.map(n => (
+                                    <article key={n.id} onClick={() => loadToEditor(n)} className={`group cursor-pointer border-l-4 pl-10 relative transition-all ${editingId === n.id ? 'border-indigo-500' : 'border-slate-200 dark:border-slate-700'}`}>
+                                        <div className="flex gap-2 mb-4 no-print">
+                                            {n.tags?.split(',').map(t => t.trim() && <span key={t} className="text-[9px] font-black text-indigo-500 uppercase bg-indigo-50 dark:bg-indigo-900/30 px-2 py-1 rounded">#{t}</span>)}
+                                        </div>
+                                        <h2 className={`font-black dark:text-white mb-4 ${readMode ? 'text-5xl reading-typography' : 'text-3xl'}`}>{n.title || 'Untitled'}</h2>
+                                        <div className={`prose dark:prose-invert max-w-none text-slate-600 dark:text-slate-300 ${readMode ? 'text-2xl reading-typography' : 'text-base'}`} dangerouslySetInnerHTML={{ __html: marked.parse(n.content || '') }} />
+                                        <div className="mt-8 text-[10px] font-black text-slate-400 uppercase tracking-widest">{n.timestamp}</div>
+                                    </article>
+                                ))}
+                            </div>
+                        </main>
+                    </div>
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
