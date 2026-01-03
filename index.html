@@ -3,32 +3,35 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Researcher's Vault - Pro</title>
+    <title>Researcher's Vault - Master Edition</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://unpkg.com/marked/marked.min.js"></script>
+    
     <style>
         mark { background-color: #fde047; color: #1e293b; padding: 0 2px; border-radius: 2px; }
         .dark mark { background-color: #854d0e; color: #fefce8; }
-        .prose blockquote { border-left: 4px solid #6366f1; padding-left: 1rem; font-style: italic; opacity: 0.8; }
-        .timer-glow { filter: drop-shadow(0 0 5px rgba(99, 102, 241, 0.4)); }
+        @media print {
+            body { background: white !important; color: black !important; font-family: serif; }
+            .no-print { display: none !important; }
+            .print-only { display: block !important; }
+            .note-card { break-inside: avoid; border-bottom: 1px solid #ddd !important; margin-bottom: 2rem !important; }
+        }
     </style>
 </head>
 <body class="bg-slate-50 dark:bg-slate-900 transition-colors">
     <div id="root"></div>
 
     <script type="text/babel">
-        const { useState, useEffect, useMemo, useRef } = React;
+        const { useState, useEffect, useMemo } = React;
 
-        const Icons = {
-            Search: () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>,
-            Highlight: () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m9 11-6 6v3h9l3-3"/><path d="m22 12-4.6 4.6a2 2 0 0 1-2.8 0l-5.2-5.2a2 2 0 0 1 0-2.8L14 4"/></svg>,
-            Trash: () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>,
-            Play: () => <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>,
-            Pause: () => <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>,
-            Clock: () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        const templates = {
+            blank: "",
+            cornell: "### Cues / Questions\n- \n\n### Notes\n- \n\n### Summary\n- ",
+            zettel: "### Atomic Idea\n- \n\n### Connection to [Topic]\n- \n\n### Source Reference\n- ",
+            review: "### Main Argument\n- \n\n### Key Evidence\n- \n\n### Personal Critique\n- "
         };
 
         const App = () => {
@@ -36,126 +39,72 @@
             const [darkMode, setDarkMode] = useState(false);
             const [query, setQuery] = useState('');
             const [newNote, setNewNote] = useState({ title: '', author: '', content: '', tags: '' });
-            
-            // Timer State
-            const [seconds, setSeconds] = useState(0);
-            const [isActive, setIsActive] = useState(false);
 
             useEffect(() => {
-                const saved = localStorage.getItem('vault_notes_v3');
+                const saved = localStorage.getItem('vault_master_final');
                 if (saved) setNotes(JSON.parse(saved));
-                if (localStorage.getItem('theme') === 'dark') setDarkMode(true);
             }, []);
 
             useEffect(() => {
-                localStorage.setItem('vault_notes_v3', JSON.stringify(notes));
-                localStorage.setItem('theme', darkMode ? 'dark' : 'light');
-            }, [notes, darkMode]);
+                localStorage.setItem('vault_master_final', JSON.stringify(notes));
+            }, [notes]);
 
-            // Timer Logic
-            useEffect(() => {
-                let interval = null;
-                if (isActive) {
-                    interval = setInterval(() => {
-                        setSeconds(prev => prev + 1);
-                    }, 1000);
-                } else {
-                    clearInterval(interval);
+            const handleTemplateChange = (e) => {
+                const selected = e.target.value;
+                if (selected !== "blank") {
+                    setNewNote({ ...newNote, content: templates[selected] });
                 }
-                return () => clearInterval(interval);
-            }, [isActive]);
-
-            const formatTime = (totalSeconds) => {
-                const hrs = Math.floor(totalSeconds / 3600);
-                const mins = Math.floor((totalSeconds % 3600) / 60);
-                const secs = totalSeconds % 60;
-                return `${hrs > 0 ? hrs + ':' : ''}${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
             };
-
-            const filteredNotes = notes.filter(n => {
-                const s = query.toLowerCase();
-                return n.title.toLowerCase().includes(s) || n.content.toLowerCase().includes(s) || n.tags.toLowerCase().includes(s);
-            });
 
             const handleAdd = (e) => {
                 e.preventDefault();
                 if (!newNote.title || !newNote.content) return;
-                setNotes([{ ...newNote, id: Date.now() }, ...notes]);
+                const noteToAdd = { 
+                    ...newNote, 
+                    id: Date.now(), 
+                    dateAdded: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) 
+                };
+                setNotes([noteToAdd, ...notes]);
                 setNewNote({ title: '', author: '', content: '', tags: '' });
+                document.getElementById('template-select').value = "blank";
             };
 
-            const wrapText = (pre, post) => {
-                const el = document.getElementById('editor');
-                const start = el.selectionStart;
-                const end = el.selectionEnd;
-                setNewNote(prev => ({
-                    ...prev,
-                    content: prev.content.slice(0, start) + pre + prev.content.slice(start, end) + post + prev.content.slice(end)
-                }));
-                setTimeout(() => el.focus(), 10);
-            };
+            const filteredNotes = notes.filter(n => 
+                n.title.toLowerCase().includes(query.toLowerCase()) || 
+                n.content.toLowerCase().includes(query.toLowerCase())
+            );
 
             return (
                 <div className={darkMode ? 'dark' : ''}>
-                    <div className="min-h-screen p-4 md:p-8 dark:bg-slate-900 transition-colors duration-300">
+                    <div className="min-h-screen p-4 md:p-8 dark:bg-slate-900">
                         <div className="max-w-4xl mx-auto">
-                            
-                            {/* Header with Timer */}
-                            <header className="flex flex-col md:flex-row justify-between items-center mb-8 gap-4">
-                                <h1 className="text-2xl font-black dark:text-white tracking-tighter">RESEARCHER'S VAULT</h1>
-                                
-                                <div className="flex items-center gap-4">
-                                    <div className="flex items-center gap-3 bg-white dark:bg-slate-800 px-4 py-2 rounded-full shadow-sm border dark:border-slate-700 timer-glow">
-                                        <div className="text-indigo-500"><Icons.Clock /></div>
-                                        <span className="font-mono font-bold dark:text-white text-lg w-16">{formatTime(seconds)}</span>
-                                        <button onClick={() => setIsActive(!isActive)} className="p-1.5 bg-indigo-500 text-white rounded-full hover:bg-indigo-600 transition">
-                                            {isActive ? <Icons.Pause /> : <Icons.Play />}
-                                        </button>
-                                        <button onClick={() => {setSeconds(0); setIsActive(false);}} className="text-[10px] font-bold text-slate-400 hover:text-red-500 uppercase tracking-tighter">Reset</button>
-                                    </div>
-                                    <button onClick={() => setDarkMode(!darkMode)} className="p-2 border rounded-full hover:bg-white dark:hover:bg-slate-800 transition dark:text-white border-slate-200 dark:border-slate-700">
-                                        {darkMode ? '☀️' : '🌙'}
-                                    </button>
-                                </div>
+                            <header className="flex justify-between items-center mb-8 no-print">
+                                <h1 className="text-2xl font-black dark:text-white uppercase italic italic underline decoration-indigo-500">The Vault</h1>
+                                <button onClick={() => setDarkMode(!darkMode)} className="p-2 border rounded-full dark:text-white border-slate-200 dark:border-slate-700">{darkMode ? '☀️' : '🌙'}</button>
                             </header>
 
-                            {/* Input Form */}
-                            <section className="bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-xl mb-8 border dark:border-slate-700 transition-all">
+                            <section className="bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-xl mb-8 border dark:border-slate-700 no-print">
                                 <form onSubmit={handleAdd} className="space-y-4">
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                        <input placeholder="Book Title" className="bg-transparent border-b dark:border-slate-600 dark:text-white p-2 outline-none focus:border-indigo-500 transition-colors" value={newNote.title} onChange={e => setNewNote({...newNote, title: e.target.value})} />
-                                        <input placeholder="Author" className="bg-transparent border-b dark:border-slate-600 dark:text-white p-2 outline-none focus:border-indigo-500 transition-colors" value={newNote.author} onChange={e => setNewNote({...newNote, author: e.target.value})} />
+                                        <input placeholder="Book Title" className="bg-transparent border-b dark:border-slate-600 dark:text-white p-2 outline-none focus:border-indigo-500" value={newNote.title} onChange={e => setNewNote({...newNote, title: e.target.value})} />
+                                        <select id="template-select" onChange={handleTemplateChange} className="bg-transparent border-b dark:border-slate-600 dark:text-slate-400 p-2 outline-none cursor-pointer">
+                                            <option value="blank">Choose Template...</option>
+                                            <option value="cornell">Cornell Method</option>
+                                            <option value="zettel">Zettelkasten (Atomic)</option>
+                                            <option value="review">Book Review</option>
+                                        </select>
                                     </div>
-                                    <div className="flex gap-2 p-1 bg-slate-50 dark:bg-slate-900 rounded-lg w-fit border dark:border-slate-700">
-                                        <button type="button" onClick={() => wrapText('<mark>', '</mark>')} className="p-2 hover:bg-white dark:hover:bg-slate-700 rounded text-yellow-500"><Icons.Highlight /></button>
-                                        <button type="button" onClick={() => wrapText('**', '**')} className="p-2 hover:bg-white dark:hover:bg-slate-700 rounded dark:text-white font-bold px-3 text-sm">B</button>
-                                        <button type="button" onClick={() => wrapText('> ', '')} className="p-2 hover:bg-white dark:hover:bg-slate-700 rounded dark:text-white italic px-3 text-sm">"</button>
-                                    </div>
-                                    <textarea id="editor" placeholder="Write insights (Markdown supported)..." className="w-full h-32 bg-slate-50 dark:bg-slate-900 p-3 rounded-xl dark:text-white outline-none focus:ring-2 ring-indigo-500 transition-all" value={newNote.content} onChange={e => setNewNote({...newNote, content: e.target.value})} />
-                                    <div className="flex flex-col md:flex-row gap-3">
-                                        <input placeholder="Tags (comma separated)" className="flex-1 bg-transparent border-b dark:border-slate-600 dark:text-white p-2 outline-none focus:border-indigo-500 transition-colors" value={newNote.tags} onChange={e => setNewNote({...newNote, tags: e.target.value})} />
-                                        <button className="bg-indigo-600 text-white px-8 py-3 rounded-xl font-bold hover:bg-indigo-700 transform hover:scale-[1.02] active:scale-95 transition-all shadow-lg shadow-indigo-200 dark:shadow-none">Save Note</button>
-                                    </div>
+                                    <textarea id="editor" placeholder="Start typing..." className="w-full h-48 bg-slate-50 dark:bg-slate-900 p-4 rounded-xl dark:text-white outline-none focus:ring-2 ring-indigo-500 font-mono text-sm" value={newNote.content} onChange={e => setNewNote({...newNote, content: e.target.value})} />
+                                    <button className="w-full bg-indigo-600 text-white py-3 rounded-xl font-bold shadow-lg hover:bg-indigo-700 transition">Save Note</button>
                                 </form>
                             </section>
 
-                            {/* Search */}
-                            <div className="relative mb-8 group">
-                                <div className="absolute left-4 top-3.5 opacity-40 group-focus-within:opacity-100 transition-opacity dark:text-white"><Icons.Search /></div>
-                                <input placeholder="Global search titles, text, or tags..." className="w-full pl-12 pr-4 py-4 rounded-2xl shadow-sm dark:bg-slate-800 dark:text-white outline-none border border-transparent focus:border-indigo-500 transition-all bg-white" value={query} onChange={e => setQuery(e.target.value)} />
-                            </div>
-
-                            {/* Notes Display */}
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                                 {filteredNotes.map(n => (
-                                    <div key={n.id} className="bg-white dark:bg-slate-800 p-6 rounded-2xl border dark:border-slate-700 shadow-sm relative group hover:shadow-md transition-all">
-                                        <button onClick={() => setNotes(notes.filter(x => x.id !== n.id))} className="absolute top-4 right-4 text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"><Icons.Trash /></button>
-                                        <h3 className="font-bold dark:text-white mb-1 leading-tight pr-6">{n.title}</h3>
-                                        <p className="text-xs text-indigo-500 font-medium mb-4">{n.author}</p>
-                                        <div className="prose prose-sm dark:prose-invert dark:text-slate-300 mb-4 text-sm leading-relaxed" dangerouslySetInnerHTML={{ __html: marked.parse(n.content) }} />
-                                        <div className="flex flex-wrap gap-2">
-                                            {n.tags.split(',').filter(t => t.trim()).map(t => <span key={t} className="text-[10px] font-bold bg-indigo-50 dark:bg-slate-700 text-indigo-600 dark:text-indigo-400 px-2 py-0.5 rounded">#{t.trim()}</span>)}
-                                        </div>
+                                    <div key={n.id} className="note-card bg-white dark:bg-slate-800 p-6 rounded-2xl border dark:border-slate-700 shadow-sm relative">
+                                        <h2 className="text-xl font-black dark:text-white mb-4 leading-tight">{n.title}</h2>
+                                        <div className="prose prose-sm dark:prose-invert text-slate-700 dark:text-slate-300 mb-4 whitespace-pre-wrap" dangerouslySetInnerHTML={{ __html: marked.parse(n.content) }} />
+                                        <div className="text-[10px] text-slate-400 uppercase tracking-widest font-bold">Captured {n.dateAdded}</div>
                                     </div>
                                 ))}
                             </div>
