@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Researcher's Vault</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://unpkg.com/marked/marked.min.js"></script>
+    
+    <style>
+        mark { background-color: #fde047; color: #1e293b; padding: 0 2px; border-radius: 2px; }
+        .dark mark { background-color: #854d0e; color: #fefce8; }
+        .prose blockquote { border-left: 4px solid #6366f1; padding-left: 1rem; font-style: italic; }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useMemo } = React;
+
+        const App = () => {
+            const [notes, setNotes] = useState([]);
+            const [darkMode, setDarkMode] = useState(false);
+            const [showStats, setShowStats] = useState(false);
+            const [showOnlyHighlights, setShowOnlyHighlights] = useState(false);
+            const [query, setQuery] = useState('');
+            const [monthlyGoal, setMonthlyGoal] = useState(10);
+            const [newNote, setNewNote] = useState({ title: '', author: '', year: '', content: '', tags: '' });
+
+            // Icons mapping for standalone script
+            const Icon = ({ name, size = 18, className = "" }) => {
+                useEffect(() => { lucide.createIcons(); }, [name, showStats, notes, darkMode]);
+                return <i data-lucide={name} style={{width: size, height: size}} className={className}></i>;
+            };
+
+            // Persistence & Draft Recovery
+            useEffect(() => {
+                const saved = localStorage.getItem('bookNotes');
+                if (saved) setNotes(JSON.parse(saved));
+                const draft = localStorage.getItem('noteDraft');
+                if (draft) setNewNote(JSON.parse(draft));
+                if (localStorage.getItem('theme') === 'dark') setDarkMode(true);
+            }, []);
+
+            useEffect(() => {
+                localStorage.setItem('bookNotes', JSON.stringify(notes));
+                localStorage.setItem('noteDraft', JSON.stringify(newNote));
+                localStorage.setItem('theme', darkMode ? 'dark' : 'light');
+            }, [notes, newNote, darkMode]);
+
+            const stats = useMemo(() => {
+                const now = new Date();
+                const thisMonthNotes = notes.filter(n => {
+                    const d = new Date(n.id);
+                    return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+                }).length;
+                return {
+                    total: notes.length,
+                    month: thisMonthNotes,
+                    percent: Math.min((thisMonthNotes / monthlyGoal) * 100, 100)
+                };
+            }, [notes, monthlyGoal]);
+
+            const filteredNotes = notes.filter(n => {
+                const s = query.toLowerCase();
+                const matchesSearch = n.title.toLowerCase().includes(s) || n.content.toLowerCase().includes(s) || n.tags.toLowerCase().includes(s);
+                return showOnlyHighlights ? (matchesSearch && n.content.includes('<mark>')) : matchesSearch;
+            });
+
+            const handleAdd = (e) => {
+                e.preventDefault();
+                if (!newNote.title || !newNote.content) return;
+                setNotes([{ ...newNote, id: Date.now() }, ...notes]);
+                setNewNote({ title: '', author: '', year: '', content: '', tags: '' });
+                localStorage.removeItem('noteDraft');
+            };
+
+            const wrapText = (pre, post) => {
+                const el = document.getElementById('editor');
+                const start = el.selectionStart;
+                const end = el.selectionEnd;
+                const text = newNote.content;
+                setNewNote({...newNote, content: text.slice(0, start) + pre + text.slice(start, end) + post + text.slice(end)});
+            };
+
+            return (
+                <div className={`${darkMode ? 'dark' : ''}`}>
+                    <div className="min-h-screen bg-slate-50 dark:bg-slate-900 transition-colors p-4 md:p-8">
+                        <div className="max-w-4xl mx-auto">
+                            {/* Header */}
+                            <header className="flex justify-between items-center mb-8">
+                                <h1 className="text-2xl font-black dark:text-white flex items-center gap-2">
+                                    <Icon name="quote" className="text-indigo-500" /> RESEARCHER'S VAULT
+                                </h1>
+                                <div className="flex gap-2">
+                                    <button onClick={() => setShowStats(!showStats)} className="p-2 bg-white dark:bg-slate-800 rounded-lg shadow border dark:border-slate-700 dark:text-white"><Icon name="bar-chart-3" /></button>
+                                    <button onClick={() => setDarkMode(!darkMode)} className="p-2 bg-white dark:bg-slate-800 rounded-lg shadow border dark:border-slate-700 dark:text-white"><Icon name={darkMode ? "sun" : "moon"} /></button>
+                                </div>
+                            </header>
+
+                            {/* Stats */}
+                            {showStats && (
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
+                                    <div className="bg-white dark:bg-slate-800 p-4 rounded-xl shadow border dark:border-slate-700 dark:text-white">
+                                        <p className="text-xs font-bold opacity-50 uppercase">Monthly Goal Progress</p>
+                                        <div className="flex justify-between text-xl font-black mb-2"><span>{stats.month} / {monthlyGoal}</span></div>
+                                        <div className="w-full bg-slate-100 dark:bg-slate-900 h-3 rounded-full overflow-hidden">
+                                            <div className="bg-indigo-500 h-full transition-all" style={{width: `${stats.percent}%`}}></div>
+                                        </div>
+                                    </div>
+                                    <div className="bg-white dark:bg-slate-800 p-4 rounded-xl shadow border dark:border-
